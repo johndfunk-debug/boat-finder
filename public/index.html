@@ -239,6 +239,8 @@
       padding: 14px 1.25rem;
       margin-bottom: 8px;
       transition: border-color 0.15s, box-shadow 0.15s;
+      display: flex;
+      gap: 14px;
     }
     .listing:hover {
       border-color: var(--border-hover);
@@ -246,6 +248,30 @@
     }
     .listing.is-new {
       border-left: 3px solid var(--new-border);
+    }
+    .listing-thumb {
+      flex-shrink: 0;
+      width: 100px;
+      height: 80px;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      background: var(--bg-surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .listing-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .listing-thumb-empty {
+      font-size: 11px;
+      color: var(--text-3);
+    }
+    .listing-body {
+      flex: 1;
+      min-width: 0;
     }
     .listing-top {
       display: flex;
@@ -788,20 +814,29 @@ function renderListings() {
     const fresh = isNew(l);
     const dateStr = l.date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
     const timeStr = l.date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    const hasLink = l.link && l.link.startsWith("http");
+    const titleTag = hasLink
+      ? `<a class="listing-title" href="${esc(l.link)}" target="_blank" rel="noopener">${esc(l.title)}</a>`
+      : `<span class="listing-title" style="color:var(--text);">${esc(l.title)}</span>`;
+    const thumb = l.image
+      ? `<div class="listing-thumb"><img src="${esc(l.image)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<span class=listing-thumb-empty>no img</span>'" /></div>`
+      : `<div class="listing-thumb"><span class="listing-thumb-empty">no img</span></div>`;
     return `<div class="listing${fresh ? " is-new" : ""}">
-      <div class="listing-top">
-        <a class="listing-title" href="${esc(l.link)}" target="_blank" rel="noopener">${esc(l.title)}</a>
-        <span class="listing-price">${l.price || "—"}</span>
+      ${thumb}
+      <div class="listing-body">
+        <div class="listing-top">
+          ${titleTag}
+          <span class="listing-price">${l.price || "—"}</span>
+        </div>
+        <div class="listing-meta">
+          ${fresh ? '<span class="badge-new">new</span>' : ""}
+          <span>${esc(l.cityName)}</span>
+          ${l.location ? `<span>${esc(l.location)}</span>` : ""}
+          <span>${dateStr} ${timeStr}</span>
+          <span class="badge-query">${esc(l.query)}</span>
+          <button class="btn-dismiss" onclick="dismiss('${escId(l.id)}')">dismiss</button>
+        </div>
       </div>
-      <div class="listing-meta">
-        ${fresh ? '<span class="badge-new">new</span>' : ""}
-        <span>${esc(l.cityName)}</span>
-        ${l.location ? `<span>${esc(l.location)}</span>` : ""}
-        <span>${dateStr} ${timeStr}</span>
-        <span class="badge-query">${esc(l.query)}</span>
-        <button class="btn-dismiss" onclick="dismiss('${escId(l.id)}')">dismiss</button>
-      </div>
-      ${l.desc ? `<div class="listing-desc">${esc(l.desc)}</div>` : ""}
     </div>`;
   }).join("");
 }
