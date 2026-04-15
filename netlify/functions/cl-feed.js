@@ -29,22 +29,6 @@ export default async (req) => {
     const html = await res.text();
     const base = `https://${encodeURIComponent(city)}.craigslist.org`;
 
-    // Extract all href links that point to individual listings (/area/cat/id.html)
-    const hrefs = [];
-    const hrefRe = /href="(\/[^"]*?\/d\/[^"]*?\/(\d+)\.html)"/gi;
-    let hm;
-    while ((hm = hrefRe.exec(html)) !== null) {
-      hrefs.push({ path: hm[1], pid: hm[2] });
-    }
-
-    // Also try broader pattern if the /d/ pattern didn't match
-    if (hrefs.length === 0) {
-      const hrefRe2 = /href="(\/[^"]*?(\d{9,})\.html)"/gi;
-      while ((hm = hrefRe2.exec(html)) !== null) {
-        hrefs.push({ path: hm[1], pid: hm[2] });
-      }
-    }
-
     // Extract JSON-LD
     const jsonLdM = html.match(/<script[^>]+id\s*=\s*["']ld_searchpage_results["'][^>]*>([\s\S]*?)<\/script>/i);
 
@@ -52,31 +36,24 @@ export default async (req) => {
       try {
         const jd = JSON.parse(jsonLdM[1]);
         const items = jd.itemListElement || [];
-        const listings = items.map((e, i) => {
+        const listings = items.map((e) => {
           const it = e.item || e;
           const of2 = it.offers || {};
           const ad = (of2.availableAtOrFrom || {}).address || {};
           const imgs = it.image || [];
-          const h = hrefs[i] || {};
-          let u = it.url || (h.path ? base + h.path : "");
-          if (u && !u.startsWith("http")) u = base + u;
+          // Build a search URL on that city's CL to find this exact listing
+          const searchUrl = `${base}/search/boo?query=${encodeURIComponent(it.name || "")}`;
           return {
             title: it.name || "",
-            url: u,
+            url: it.url || searchUrl,
             price: of2.price ? "$" + Number(of2.price).toLocaleString() : "",
             priceNum: of2.price ? Number(of2.price) : null,
             date: it.datePosted || "",
             location: ad.addressLocality || "",
             image: Array.isArray(imgs) && imgs.length > 0 ? imgs[0] : "",
-            pid: h.pid || ""
           };
         });
-        return new Response(JSON.stringify({
-          listings,
-          method: "json-ld",
-          hrefCount: hrefs.length,
-          sampleHrefs: hrefs.slice(0, 3)
-        }), {
+        return new Response(JSON.stringify({ listings, method: "json-ld" }), {
           status: 200,
           headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=300", "Access-Control-Allow-Origin": "*" }
         });
@@ -85,13 +62,10 @@ export default async (req) => {
       }
     }
 
-    // Fallback: return debug info
     return new Response(JSON.stringify({
       listings: [],
       method: "none",
-      hrefCount: hrefs.length,
-      sampleHrefs: hrefs.slice(0, 5),
-      htmlSnippet: html.substring(0, 800)
+      htmlLen: html.length
     }), {
       status: 200, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
     });
