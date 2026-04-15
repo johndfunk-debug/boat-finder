@@ -41,9 +41,29 @@ export default async (req) => {
     }
 
     const html = await res.text();
+    const baseUrl = `https://${encodeURIComponent(city)}.craigslist.org`;
 
-    // ── Strategy 1: Extract JSON-LD structured data ──
-    // CL embeds a <script id="ld_searchpage_results" type="application/ld+json"> tag
+    // ── Extract links and dates from HTML result cards ──
+    // These have the actual URLs and post dates that JSON-LD lacks
+    const htmlLinks = [];
+    const cardPattern = /<li[^>]*class="[^"]*cl-search-result[^"]*"[^>]*data-pid="(\d+)"[^>]*>([\s\S]*?)<\/li>/gi;
+    let cardMatch;
+    while ((cardMatch = cardPattern.exec(html)) !== null) {
+      const pid = cardMatch[1];
+      const block = cardMatch[2];
+      const hrefMatch = block.match(/<a[^>]*href="([^"]*\/(\d+)\.html)"/i);
+      const dateMatch = block.match(/datetime="([^"]*)"/i);
+      const titleMatch = block.match(/<span[^>]*class="[^"]*label[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
+      const title = titleMatch ? titleMatch[1].replace(/<[^>]*>/g, "").trim() : "";
+      htmlLinks.push({
+        pid,
+        url: hrefMatch ? hrefMatch[1] : "",
+        date: dateMatch ? dateMatch[1] : "",
+        title,
+      });
+    }
+
+    // ── Strategy 1: Extract JSON-LD structured data + merge with HTML links ──
     const jsonLdMatch = html.match(
       /<script[^>]+id\s*=\s*["']ld_searchpage_results["'][^>]*>([\s\S]*?)<\/script>/i
     );
@@ -52,23 +72,36 @@ export default async (req) => {
       try {
         const jsonLd = JSON.parse(jsonLdMatch[1]);
         const items = jsonLd.itemListElement || [];
-        const listings = items.map((entry) => {
+        const listings = items.map((entry, idx) => {
           const item = entry.item || entry;
           const offers = item.offers || {};
           const loc = offers.availableAtOrFrom || {};
           const addr = loc.address || {};
           const images = item.image || [];
+
+          // Match to HTML card by index (they're in the same order)
+          // or by title similarity as fallback
+          const htmlCard = htmlLinks[idx] || {};
+
+          // Build URL: prefer HTML-extracted URL, then item.url, then nothing
+          let listingUrl = item.url || htmlCard.url || "";
+          // Make relative URLs absolute
+          if (listingUrl && !listingUrl.startsWith("http")) {
+            listingUrl = baseUrl + listingUrl;
+          }
+
           return {
-            title: item.name || "",
-            url: item.url || "",
+            title: item.name || htmlCard.title || "",
+            url: listingUrl,
             price: offers.price ? `$${Number(offers.price).toLocaleString()}` : "",
             priceNum: offers.price ? Number(offers.price) : null,
-            date: item.datePosted || "",
+            date: htmlCard.date || item.datePosted || "",
             location: addr.addressLocality || "",
             image: Array.isArray(images) && images.length > 0 ? images[0] : (typeof images === "string" ? images : ""),
+            pid: htmlCard.pid || "",
           };
         });
-        return new Response(JSON.stringify({ listings, method: "json-ld" }), {
+        return new Response(JSON.stringify({ listings, method: "json-ld+html" }), {
           status: 200,
           headers: {
             "Content-Type": "application/json",
@@ -81,41 +114,22 @@ export default async (req) => {
       }
     }
 
-    // ── Strategy 2: Parse the HTML result cards ──
-    const listings = [];
-    const resultPattern =
-      /<li[^>]*class="[^"]*cl-search-result[^"]*"[^>]*data-pid="(\d+)"[^>]*>([\s\S]*?)<\/li>/gi;
-    let match;
-    while ((match = resultPattern.exec(html)) !== null) {
-      const pid = match[1];
-      const block = match[2];
-
-      const titleMatch = block.match(/<a[^>]*class="[^"]*posting-title[^"]*"[^>]*href="([^"]*)"[^>]*>[\s\S]*?<span[^>]*class="[^"]*label[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
-      const title = titleMatch ? titleMatch[2].replace(/<[^>]*>/g, "").trim() : "";
-      const linkUrl = titleMatch ? titleMatch[1] : "";
-
-      const priceMatch = block.match(/<span[^>]*class="[^"]*priceinfo[^"]*"[^>]*>([\s\S]*?)<\/span>/i)
-        || block.match(/\$[\d,]+/);
-      let price = "";
-      let priceNum = null;
-      if (priceMatch) {
-        const raw = priceMatch[1] || priceMatch[0];
-        const cleaned = raw.replace(/<[^>]*>/g, "").trim();
-        price = cleaned;
-        const numMatch = cleaned.match(/[\d,]+/);
-        if (numMatch) priceNum = parseInt(numMatch[0].replace(/,/g, ""), 10);
-      }
-
-      const locMatch = block.match(/<span[^>]*class="[^"]*meta[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
-      const location = locMatch ? locMatch[1].replace(/<[^>]*>/g, "").trim() : "";
-
-      const dateMatch = block.match(/datetime="([^"]*)"/i);
-      const date = dateMatch ? dateMatch[1] : "";
-
-      if (title || linkUrl) {
-        listings.push({ title, url: linkUrl, price, priceNum, date, location, image: "", pid });
-      }
-    }
+    // ── Strategy 2: Use HTML-only data if JSON-LD wasn't available ──
+    const listings = htmlLinks.map((card) => {
+      const priceMatch = card.title.match(/\$[\d,]+/);
+      let url = card.url;
+      if (url && !url.startsWith("http")) url = baseUrl + url;
+      return {
+        title: card.title,
+        url: url,
+        price: priceMatch ? priceMatch[0] : "",
+        priceNum: priceMatch ? parseInt(priceMatch[0].replace(/[$,]/g, ""), 10) : null,
+        date: card.date,
+        location: "",
+        image: "",
+        pid: card.pid,
+      };
+    });
 
     if (listings.length === 0 && !jsonLdMatch) {
       return new Response(
