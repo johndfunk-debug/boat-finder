@@ -600,40 +600,45 @@ function toggleRegion(ri, on) {
   renderCities();
 }
 
-// ── Detect if running on Netlify or locally ──
-const IS_NETLIFY = !(location.hostname === "localhost" || location.hostname === "127.0.0.1" || location.protocol === "file:");
-
-// ── Fetch a single city/query from the serverless function ──
+// ── Fetch a single feed ──
 async function fetchFeed(city, query, minPrice, maxPrice) {
-  if (!IS_NETLIFY) {
-    // Can't run locally — serverless function only works on Netlify
-    return [];
-  }
-
   let url = `/.netlify/functions/cl-feed?city=${encodeURIComponent(city)}&query=${encodeURIComponent(query)}`;
   if (minPrice) url += `&min_price=${minPrice}`;
   if (maxPrice) url += `&max_price=${maxPrice}`;
 
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
     if (!res.ok) return [];
-    const data = await res.json();
+    const xml = await res.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xml, "text/xml");
+    const items = doc.querySelectorAll("item");
+    const results = [];
 
-    if (!data.listings || !data.listings.length) return [];
+    items.forEach(item => {
+      const title = item.querySelector("title")?.textContent || "";
+      const link = item.querySelector("link")?.textContent || "";
+      const desc = item.querySelector("description")?.textContent || "";
+      const dateStr = item.querySelector("dc\\:date, date")?.textContent || "";
 
-    return data.listings.map(l => ({
-      id: l.url || l.pid || (l.title + l.date),
-      title: l.title || query + " listing",
-      price: l.price || "",
-      priceNum: l.priceNum || null,
-      link: l.url || "",
-      cityId: city,
-      cityName: ALL_CITIES.find(c => c.id === city)?.name || city,
-      date: l.date ? new Date(l.date) : new Date(),
-      location: l.location || "",
-      image: l.image || "",
-      query,
-    }));
+      const priceMatch = title.match(/\$[\d,]+/) || desc.match(/\$[\d,]+/);
+      const price = priceMatch ? priceMatch[0] : "";
+      const priceNum = price ? parseInt(price.replace(/[$,]/g, ""), 10) : null;
+
+      results.push({
+        id: link || (title + dateStr),
+        title: title.replace(/\$[\d,]+/, "").trim() || query + " listing",
+        price,
+        priceNum,
+        link,
+        cityId: city,
+        cityName: ALL_CITIES.find(c => c.id === city)?.name || city,
+        date: dateStr ? new Date(dateStr) : new Date(),
+        desc: desc.replace(/<[^>]*>/g, "").substring(0, 250),
+        query,
+      });
+    });
+    return results;
   } catch (e) {
     return [];
   }
@@ -651,23 +656,11 @@ async function doSearch() {
   if (!terms.length) { area.innerHTML = '<div class="empty-state">Enter at least one search term.</div>'; return; }
   if (!activeCities.length) { area.innerHTML = '<div class="empty-state">Select at least one city.</div>'; return; }
 
-  if (!IS_NETLIFY) {
-    area.innerHTML = `<div class="empty-state" style="max-width:500px; margin:2rem auto;">
-      <div style="font-size:16px; font-weight:500; margin-bottom:8px;">Deploy to Netlify first</div>
-      <div style="line-height:1.7;">This app needs its serverless function to fetch Craigslist data.
-      It won't work from a local file or localhost.<br><br>
-      Push to GitHub → connect to Netlify → it'll work immediately.<br>
-      See the README for step-by-step instructions.</div>
-    </div>`;
-    return;
-  }
-
   btn.disabled = true;
   btn.textContent = "Searching...";
 
   const totalJobs = activeCities.length * terms.length;
   let doneJobs = 0;
-  let failedJobs = 0;
 
   area.innerHTML = `
     <div class="status"><div class="spinner"></div><span>Searching ${activeCities.length} cities × ${terms.length} terms...</span></div>
@@ -692,7 +685,7 @@ async function doSearch() {
       batch.map(j => fetchFeed(j.city, j.term, minPrice, maxPrice))
     );
     results.forEach(r => {
-      if (r.status === "fulfilled" && r.value.length > 0) {
+      if (r.status === "fulfilled") {
         r.value.forEach(listing => {
           const key = listing.link || listing.title;
           if (!seen.has(key)) {
@@ -700,17 +693,11 @@ async function doSearch() {
             allListings.push(listing);
           }
         });
-      } else {
-        failedJobs++;
       }
     });
     doneJobs += batch.length;
     const prog = document.getElementById("progressText");
-    if (prog) {
-      let txt = `${doneJobs} / ${totalJobs} feeds checked — ${allListings.length} listings found`;
-      if (failedJobs > 0) txt += ` (${failedJobs} feeds unavailable)`;
-      prog.textContent = txt;
-    }
+    if (prog) prog.textContent = `${doneJobs} / ${totalJobs} feeds checked — ${allListings.length} listings found`;
   }
 
   allListings.sort((a, b) => b.date - a.date);
@@ -796,7 +783,6 @@ function renderListings() {
       <div class="listing-meta">
         ${fresh ? '<span class="badge-new">new</span>' : ""}
         <span>${esc(l.cityName)}</span>
-        ${l.location ? `<span>${esc(l.location)}</span>` : ""}
         <span>${dateStr} ${timeStr}</span>
         <span class="badge-query">${esc(l.query)}</span>
         <button class="btn-dismiss" onclick="dismiss('${escId(l.id)}')">dismiss</button>
