@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Boat Finder — Craigslist Aggregator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f6f5f0;
+      --bg-card: #ffffff;
+      --bg-surface: #edece7;
+      --text: #1a1a18;
+      --text-2: #6b6a65;
+      --text-3: #9c9b95;
+      --border: #dddcd6;
+      --border-hover: #c4c3bc;
+      --accent: #1d6b52;
+      --accent-bg: #e4f2ec;
+      --accent-text: #145740;
+      --new-bg: #dff5e9;
+      --new-border: #1d9e75;
+      --danger: #c0392b;
+      --font: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      --mono: 'DM Mono', monospace;
+      --radius: 10px;
+      --radius-sm: 6px;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4rem;
+    }
+
+    /* Header */
+    .header {
+      margin-bottom: 2rem;
+    }
+    .header h1 {
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: -0.5px;
+      margin-bottom: 4px;
+    }
+    .header h1 span { color: var(--accent); }
+    .header p {
+      color: var(--text-2);
+      font-size: 15px;
+    }
+
+    /* Panels */
+    .panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .panel-label {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-3);
+      margin-bottom: 10px;
+    }
+
+    /* Inputs */
+    input[type="text"], input[type="number"] {
+      width: 100%;
+      padding: 10px 14px;
+      font-size: 15px;
+      font-family: var(--font);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg);
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: var(--accent); }
+    input::placeholder { color: var(--text-3); }
+
+    /* Region groups */
+    .region-group { margin-bottom: 14px; }
+    .region-group:last-child { margin-bottom: 0; }
+    .region-name {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-3);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .region-toggle {
+      font-size: 11px;
+      color: var(--accent);
+      cursor: pointer;
+      background: none;
+      border: none;
+      font-family: var(--font);
+      padding: 0;
+    }
+    .region-toggle:hover { text-decoration: underline; }
+
+    /* City chips */
+    .city-grid { display: flex; flex-wrap: wrap; gap: 5px; }
+    .city-chip {
+      font-size: 13px;
+      padding: 4px 11px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text-2);
+      cursor: pointer;
+      transition: all 0.12s;
+      font-family: var(--font);
+      white-space: nowrap;
+    }
+    .city-chip:hover { border-color: var(--border-hover); }
+    .city-chip.active {
+      background: var(--accent-bg);
+      color: var(--accent-text);
+      border-color: var(--accent);
+    }
+
+    /* Master toggles */
+    .master-toggles {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .master-btn {
+      font-size: 12px;
+      font-weight: 500;
+      padding: 5px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--accent);
+      background: transparent;
+      color: var(--accent);
+      cursor: pointer;
+      font-family: var(--font);
+      transition: all 0.12s;
+    }
+    .master-btn:hover { background: var(--accent-bg); }
+
+    /* Price row */
+    .price-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .price-row input { width: 50%; }
+    .price-row span { color: var(--text-3); font-size: 14px; }
+
+    /* Search button */
+    .btn-search {
+      width: 100%;
+      padding: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      font-family: var(--font);
+      cursor: pointer;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-sm);
+      transition: opacity 0.15s, transform 0.1s;
+      margin-top: 1rem;
+    }
+    .btn-search:hover { opacity: 0.9; }
+    .btn-search:active { transform: scale(0.98); }
+    .btn-search:disabled { opacity: 0.5; cursor: wait; }
+
+    /* Results */
+    .results-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 1.5rem 0 0.75rem;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .results-bar h2 {
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .results-count {
+      font-size: 13px;
+      color: var(--text-2);
+      font-family: var(--mono);
+    }
+
+    .controls-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .controls-row select {
+      padding: 7px 12px;
+      font-size: 13px;
+      font-family: var(--font);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-card);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .controls-row label {
+      font-size: 13px;
+      color: var(--text-2);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+    }
+
+    /* Listing cards */
+    .listing {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 1.25rem;
+      margin-bottom: 8px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .listing:hover {
+      border-color: var(--border-hover);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    .listing.is-new {
+      border-left: 3px solid var(--new-border);
+    }
+    .listing-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .listing-title {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--accent);
+      text-decoration: none;
+      line-height: 1.4;
+    }
+    .listing-title:hover { text-decoration: underline; }
+    .listing-price {
+      font-size: 15px;
+      font-weight: 600;
+      font-family: var(--mono);
+      white-space: nowrap;
+    }
+    .listing-meta {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--text-3);
+    }
+    .badge-new {
+      background: var(--new-bg);
+      color: var(--new-border);
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 11px;
+    }
+    .badge-query {
+      background: var(--bg-surface);
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+    }
+    .listing-desc {
+      font-size: 13px;
+      color: var(--text-2);
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+    .btn-dismiss {
+      font-size: 11px;
+      color: var(--text-3);
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-family: var(--font);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .btn-dismiss:hover { color: var(--danger); background: #fdecea; }
+
+    /* Status */
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 2rem;
+      justify-content: center;
+      color: var(--text-2);
+      font-size: 14px;
+    }
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2.5px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .progress-cities {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-3);
+      text-align: center;
+      margin-top: 4px;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--text-3);
+      font-size: 14px;
+    }
+
+    /* Responsive */
+    @media (max-width: 500px) {
+      .container { padding: 1rem 0.75rem 3rem; }
+      .panel { padding: 1rem; }
+      .listing { padding: 12px 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Boat <span>finder</span></h1>
+      <p>Aggregate Craigslist boat listings across dozens of cities. Find the rare stuff.</p>
+    </div>
+
+    <!-- Search terms -->
+    <div class="panel">
+      <div class="panel-label">Search terms</div>
+      <input type="text" id="searchTerms" value="sailboat, melonseed, peep hen" placeholder="Comma-separated — e.g. sailboat, melonseed, peep hen, hobie 16" />
+    </div>
+
+    <!-- Cities -->
+    <div class="panel">
+      <div class="panel-label">Cities</div>
+      <div class="master-toggles">
+        <button class="master-btn" onclick="toggleAll(true)">Select all</button>
+        <button class="master-btn" onclick="toggleAll(false)">Clear all</button>
+        <button class="master-btn" onclick="selectRegion('nearby')">Nearby</button>
+        <button class="master-btn" onclick="selectRegion('westcoast')">West Coast</button>
+      </div>
+      <div id="cityContainer"></div>
+    </div>
+
+    <!-- Price -->
+    <div class="panel">
+      <div class="panel-label">Price range (optional)</div>
+      <div class="price-row">
+        <input type="number" id="priceMin" placeholder="Min $" min="0" />
+        <span>to</span>
+        <input type="number" id="priceMax" placeholder="Max $" min="0" />
+      </div>
+    </div>
+
+    <!-- Search button -->
+    <button class="btn-search" id="searchBtn" onclick="doSearch()">Search boats</button>
+
+    <!-- Results -->
+    <div id="resultsArea">
+      <div class="empty-state">Pick your cities, enter search terms, and hit search.</div>
+    </div>
+  </div>
+
+<script>
+// ── City database organized by region ──
+const REGIONS = [
+  {
+    name: "NorCal / nearby",
+    tag: "nearby",
+    cities: [
+      { id: "redding", name: "Redding", on: true },
+      { id: "chico", name: "Chico", on: true },
+      { id: "sacramento", name: "Sacramento", on: true },
+      { id: "sfbay", name: "SF Bay Area", on: true },
+      { id: "goldcountry", name: "Gold Country", on: true },
+      { id: "yubasutter", name: "Yuba-Sutter", on: true },
+      { id: "humboldt", name: "Humboldt", on: false },
+      { id: "mendocino", name: "Mendocino", on: false },
+      { id: "stockton", name: "Stockton", on: false },
+      { id: "modesto", name: "Modesto", on: false },
+      { id: "merced", name: "Merced", on: false },
+      { id: "monterey", name: "Monterey", on: false },
+      { id: "santacruz", name: "Santa Cruz", on: false },
+    ],
+  },
+  {
+    name: "SoCal",
+    tag: "westcoast",
+    cities: [
+      { id: "losangeles", name: "Los Angeles", on: false },
+      { id: "sandiego", name: "San Diego", on: false },
+      { id: "orangecounty", name: "Orange County", on: false },
+      { id: "inlandempire", name: "Inland Empire", on: false },
+      { id: "santabarbara", name: "Santa Barbara", on: false },
+      { id: "ventura", name: "Ventura", on: false },
+      { id: "bakersfield", name: "Bakersfield", on: false },
+      { id: "visalia", name: "Visalia", on: false },
+      { id: "fresno", name: "Fresno", on: false },
+      { id: "slo", name: "San Luis Obispo", on: false },
+    ],
+  },
+  {
+    name: "Oregon",
+    tag: "westcoast",
+    cities: [
+      { id: "medford", name: "Medford", on: true },
+      { id: "portland", name: "Portland", on: false },
+      { id: "eugene", name: "Eugene", on: false },
+      { id: "bend", name: "Bend", on: false },
+      { id: "corvallis", name: "Corvallis", on: false },
+      { id: "klamath", name: "Klamath Falls", on: false },
+      { id: "oregoncoast", name: "Oregon Coast", on: false },
+      { id: "roseburg", name: "Roseburg", on: false },
+      { id: "salem", name: "Salem", on: false },
+    ],
+  },
+  {
+    name: "Washington",
+    tag: "westcoast",
+    cities: [
+      { id: "seattle", name: "Seattle", on: false },
+      { id: "olympia", name: "Olympia", on: false },
+      { id: "bellingham", name: "Bellingham", on: false },
+      { id: "skagit", name: "Skagit / SJ Islands", on: false },
+      { id: "wenatchee", name: "Wenatchee", on: false },
+      { id: "yakima", name: "Yakima", on: false },
+      { id: "spokane", name: "Spokane", on: false },
+      { id: "tricities", name: "Tri-Cities", on: false },
+      { id: "kpr", name: "Kennewick", on: false },
+    ],
+  },
+  {
+    name: "Mountain / inland",
+    cities: [
+      { id: "reno", name: "Reno", on: false },
+      { id: "boise", name: "Boise", on: false },
+      { id: "lasvegas", name: "Las Vegas", on: false },
+      { id: "phoenix", name: "Phoenix", on: false },
+      { id: "tucson", name: "Tucson", on: false },
+      { id: "saltlakecity", name: "Salt Lake City", on: false },
+      { id: "denver", name: "Denver", on: false },
+      { id: "albuquerque", name: "Albuquerque", on: false },
+      { id: "flagstaff", name: "Flagstaff", on: false },
+      { id: "missoula", name: "Missoula", on: false },
+      { id: "helena", name: "Helena", on: false },
+      { id: "billings", name: "Billings", on: false },
+    ],
+  },
+  {
+    name: "Midwest",
+    cities: [
+      { id: "minneapolis", name: "Minneapolis", on: false },
+      { id: "chicago", name: "Chicago", on: false },
+      { id: "detroit", name: "Detroit", on: false },
+      { id: "milwaukee", name: "Milwaukee", on: false },
+      { id: "stlouis", name: "St. Louis", on: false },
+      { id: "kansascity", name: "Kansas City", on: false },
+      { id: "columbus", name: "Columbus", on: false },
+      { id: "indianapolis", name: "Indianapolis", on: false },
+      { id: "duluth", name: "Duluth", on: false },
+    ],
+  },
+  {
+    name: "South",
+    cities: [
+      { id: "houston", name: "Houston", on: false },
+      { id: "dallas", name: "Dallas", on: false },
+      { id: "austin", name: "Austin", on: false },
+      { id: "sanantonio", name: "San Antonio", on: false },
+      { id: "neworleans", name: "New Orleans", on: false },
+      { id: "miami", name: "Miami", on: false },
+      { id: "tampa", name: "Tampa", on: false },
+      { id: "jacksonville", name: "Jacksonville", on: false },
+      { id: "atlanta", name: "Atlanta", on: false },
+      { id: "nashville", name: "Nashville", on: false },
+      { id: "charleston", name: "Charleston", on: false },
+    ],
+  },
+  {
+    name: "East Coast",
+    cities: [
+      { id: "newyork", name: "New York", on: false },
+      { id: "boston", name: "Boston", on: false },
+      { id: "philadelphia", name: "Philadelphia", on: false },
+      { id: "baltimore", name: "Baltimore", on: false },
+      { id: "washingtondc", name: "Washington DC", on: false },
+      { id: "norfolk", name: "Norfolk", on: false },
+      { id: "newjersey", name: "New Jersey", on: false },
+      { id: "hartford", name: "Hartford", on: false },
+      { id: "providence", name: "Providence", on: false },
+      { id: "maine", name: "Maine", on: false },
+      { id: "capecod", name: "Cape Cod", on: false },
+      { id: "newhaven", name: "New Haven", on: false },
+    ],
+  },
+];
+
+// Flatten for easy access
+const ALL_CITIES = REGIONS.flatMap(r => r.cities.map(c => ({ ...c, region: r.name, tag: r.tag })));
+
+let allListings = [];
+let dismissedIds = {};
+
+// Load dismissed from localStorage
+try {
+  const saved = localStorage.getItem("bf_dismissed");
+  if (saved) dismissedIds = JSON.parse(saved);
+} catch(e) {}
+
+function saveDismissed() {
+  try { localStorage.setItem("bf_dismissed", JSON.stringify(dismissedIds)); } catch(e) {}
+}
+
+// ── Render city chips ──
+function renderCities() {
+  const container = document.getElementById("cityContainer");
+  container.innerHTML = "";
+  REGIONS.forEach((region, ri) => {
+    const div = document.createElement("div");
+    div.className = "region-group";
+
+    const header = document.createElement("div");
+    header.className = "region-name";
+    header.innerHTML = `${region.name} <button class="region-toggle" onclick="toggleRegion(${ri}, true)">all</button><button class="region-toggle" onclick="toggleRegion(${ri}, false)">none</button>`;
+    div.appendChild(header);
+
+    const grid = document.createElement("div");
+    grid.className = "city-grid";
+
+    region.cities.forEach((city) => {
+      const chip = document.createElement("button");
+      chip.className = "city-chip" + (city.on ? " active" : "");
+      chip.textContent = city.name;
+      chip.dataset.cityId = city.id;
+      chip.onclick = () => {
+        city.on = !city.on;
+        chip.classList.toggle("active");
+      };
+      grid.appendChild(chip);
+    });
+
+    div.appendChild(grid);
+    container.appendChild(div);
+  });
+}
+
+function toggleAll(on) {
+  ALL_CITIES.forEach(c => (c.on = on));
+  document.querySelectorAll(".city-chip").forEach(el => {
+    el.classList.toggle("active", on);
+  });
+}
+
+function selectRegion(tag) {
+  ALL_CITIES.forEach(c => {
+    if (tag === "nearby") c.on = c.tag === "nearby" || c.on;
+    else if (tag === "westcoast") c.on = (c.tag === "nearby" || c.tag === "westcoast") || c.on;
+  });
+  document.querySelectorAll(".city-chip").forEach(el => {
+    const city = ALL_CITIES.find(c => c.id === el.dataset.cityId);
+    if (city) el.classList.toggle("active", city.on);
+  });
+}
+
+function toggleRegion(ri, on) {
+  REGIONS[ri].cities.forEach(c => (c.on = on));
+  renderCities();
+}
+
+// ── Detect if running on Netlify or locally ──
+const IS_NETLIFY = !(location.hostname === "localhost" || location.hostname === "127.0.0.1" || location.protocol === "file:");
+
+// ── Fetch a single city/query from the serverless function ──
+async function fetchFeed(city, query, minPrice, maxPrice) {
+  if (!IS_NETLIFY) {
+    // Can't run locally — serverless function only works on Netlify
+    return [];
+  }
+
+  let url = `/.netlify/functions/cl-feed?city=${encodeURIComponent(city)}&query=${encodeURIComponent(query)}`;
+  if (minPrice) url += `&min_price=${minPrice}`;
+  if (maxPrice) url += `&max_price=${maxPrice}`;
+
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    if (!res.ok) return [];
+    const data = await res.json();
+
+    if (!data.listings || !data.listings.length) return [];
+
+    return data.listings.map(l => ({
+      id: l.url || l.pid || (l.title + l.date),
+      title: l.title || query + " listing",
+      price: l.price || "",
+      priceNum: l.priceNum || null,
+      link: l.url || "",
+      cityId: city,
+      cityName: ALL_CITIES.find(c => c.id === city)?.name || city,
+      date: l.date ? new Date(l.date) : new Date(),
+      location: l.location || "",
+      image: l.image || "",
+      query,
+    }));
+  } catch (e) {
+    return [];
+  }
+}
+
+// ── Search ──
+async function doSearch() {
+  const btn = document.getElementById("searchBtn");
+  const area = document.getElementById("resultsArea");
+  const terms = document.getElementById("searchTerms").value.split(",").map(s => s.trim()).filter(Boolean);
+  const activeCities = ALL_CITIES.filter(c => c.on);
+  const minPrice = document.getElementById("priceMin").value || "";
+  const maxPrice = document.getElementById("priceMax").value || "";
+
+  if (!terms.length) { area.innerHTML = '<div class="empty-state">Enter at least one search term.</div>'; return; }
+  if (!activeCities.length) { area.innerHTML = '<div class="empty-state">Select at least one city.</div>'; return; }
+
+  if (!IS_NETLIFY) {
+    area.innerHTML = `<div class="empty-state" style="max-width:500px; margin:2rem auto;">
+      <div style="font-size:16px; font-weight:500; margin-bottom:8px;">Deploy to Netlify first</div>
+      <div style="line-height:1.7;">This app needs its serverless function to fetch Craigslist data.
+      It won't work from a local file or localhost.<br><br>
+      Push to GitHub → connect to Netlify → it'll work immediately.<br>
+      See the README for step-by-step instructions.</div>
+    </div>`;
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "Searching...";
+
+  const totalJobs = activeCities.length * terms.length;
+  let doneJobs = 0;
+  let failedJobs = 0;
+
+  area.innerHTML = `
+    <div class="status"><div class="spinner"></div><span>Searching ${activeCities.length} cities × ${terms.length} terms...</span></div>
+    <div class="progress-cities" id="progressText">0 / ${totalJobs} feeds checked</div>
+  `;
+
+  allListings = [];
+  const seen = new Set();
+
+  // Run in batches of 6 to avoid hammering
+  const jobs = [];
+  for (const city of activeCities) {
+    for (const term of terms) {
+      jobs.push({ city: city.id, term });
+    }
+  }
+
+  const BATCH = 6;
+  for (let i = 0; i < jobs.length; i += BATCH) {
+    const batch = jobs.slice(i, i + BATCH);
+    const results = await Promise.allSettled(
+      batch.map(j => fetchFeed(j.city, j.term, minPrice, maxPrice))
+    );
+    results.forEach(r => {
+      if (r.status === "fulfilled" && r.value.length > 0) {
+        r.value.forEach(listing => {
+          const key = listing.link || listing.title;
+          if (!seen.has(key)) {
+            seen.add(key);
+            allListings.push(listing);
+          }
+        });
+      } else {
+        failedJobs++;
+      }
+    });
+    doneJobs += batch.length;
+    const prog = document.getElementById("progressText");
+    if (prog) {
+      let txt = `${doneJobs} / ${totalJobs} feeds checked — ${allListings.length} listings found`;
+      if (failedJobs > 0) txt += ` (${failedJobs} feeds unavailable)`;
+      prog.textContent = txt;
+    }
+  }
+
+  allListings.sort((a, b) => b.date - a.date);
+  btn.disabled = false;
+  btn.textContent = "Search boats";
+  renderResults();
+}
+
+// ── Render ──
+function renderResults() {
+  const area = document.getElementById("resultsArea");
+  if (!allListings.length) {
+    area.innerHTML = '<div class="empty-state">No listings found. Try broader terms or more cities.</div>';
+    return;
+  }
+
+  const visible = allListings.filter(l => !dismissedIds[l.id]);
+  const newCount = visible.filter(l => isNew(l)).length;
+
+  area.innerHTML = `
+    <div class="results-bar">
+      <h2>Listings</h2>
+      <span class="results-count">${visible.length} results${newCount ? " · " + newCount + " new" : ""}</span>
+    </div>
+    <div class="controls-row">
+      <select id="sortBy" onchange="renderListings()">
+        <option value="date">Newest first</option>
+        <option value="price-asc">Price: low → high</option>
+        <option value="price-desc">Price: high → low</option>
+      </select>
+      <select id="filterCity" onchange="renderListings()">
+        <option value="">All cities</option>
+      </select>
+      <select id="filterQuery" onchange="renderListings()">
+        <option value="">All search terms</option>
+      </select>
+      <label><input type="checkbox" id="newOnlyCb" onchange="renderListings()" /> New only</label>
+    </div>
+    <div id="listingsContainer"></div>
+  `;
+
+  // Populate filter dropdowns
+  const cities = [...new Set(allListings.map(l => l.cityName))].sort();
+  const queries = [...new Set(allListings.map(l => l.query))].sort();
+  const citySelect = document.getElementById("filterCity");
+  const querySelect = document.getElementById("filterQuery");
+  cities.forEach(c => { const o = document.createElement("option"); o.value = c; o.textContent = c; citySelect.appendChild(o); });
+  queries.forEach(q => { const o = document.createElement("option"); o.value = q; o.textContent = q; querySelect.appendChild(o); });
+
+  renderListings();
+}
+
+function renderListings() {
+  const sortBy = document.getElementById("sortBy")?.value || "date";
+  const filterCity = document.getElementById("filterCity")?.value || "";
+  const filterQuery = document.getElementById("filterQuery")?.value || "";
+  const newOnly = document.getElementById("newOnlyCb")?.checked || false;
+
+  let list = allListings.filter(l => !dismissedIds[l.id]);
+  if (filterCity) list = list.filter(l => l.cityName === filterCity);
+  if (filterQuery) list = list.filter(l => l.query === filterQuery);
+  if (newOnly) list = list.filter(l => isNew(l));
+
+  if (sortBy === "date") list.sort((a, b) => b.date - a.date);
+  else if (sortBy === "price-asc") list.sort((a, b) => (a.priceNum || 999999) - (b.priceNum || 999999));
+  else if (sortBy === "price-desc") list.sort((a, b) => (b.priceNum || 0) - (a.priceNum || 0));
+
+  const container = document.getElementById("listingsContainer");
+  if (!list.length) {
+    container.innerHTML = '<div class="empty-state">No listings match your filters.</div>';
+    return;
+  }
+
+  container.innerHTML = list.map(l => {
+    const fresh = isNew(l);
+    const dateStr = l.date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const timeStr = l.date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    return `<div class="listing${fresh ? " is-new" : ""}">
+      <div class="listing-top">
+        <a class="listing-title" href="${esc(l.link)}" target="_blank" rel="noopener">${esc(l.title)}</a>
+        <span class="listing-price">${l.price || "—"}</span>
+      </div>
+      <div class="listing-meta">
+        ${fresh ? '<span class="badge-new">new</span>' : ""}
+        <span>${esc(l.cityName)}</span>
+        ${l.location ? `<span>${esc(l.location)}</span>` : ""}
+        <span>${dateStr} ${timeStr}</span>
+        <span class="badge-query">${esc(l.query)}</span>
+        <button class="btn-dismiss" onclick="dismiss('${escId(l.id)}')">dismiss</button>
+      </div>
+      ${l.desc ? `<div class="listing-desc">${esc(l.desc)}</div>` : ""}
+    </div>`;
+  }).join("");
+}
+
+function isNew(l) {
+  return (Date.now() - l.date.getTime()) < 86400000;
+}
+
+function dismiss(id) {
+  dismissedIds[id] = 1;
+  saveDismissed();
+  renderListings();
+}
+
+function esc(s) {
+  const d = document.createElement("div");
+  d.textContent = s || "";
+  return d.innerHTML;
+}
+
+function escId(s) {
+  return (s || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+}
+
+// Init
+renderCities();
+</script>
+</body>
+</html>
