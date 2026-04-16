@@ -435,7 +435,7 @@
     </div>
 
     <!-- Search button -->
-    <button class="btn-search" id="searchBtn" onclick="doSearch()">Search boats</button>
+    <button class="btn-search" id="searchBtn" onclick="doSearch()">Search</button>
 
     <!-- Results -->
     <div id="resultsArea">
@@ -578,7 +578,8 @@ const REGIONS = [
 ];
 
 // Flatten for easy access
-const ALL_CITIES = REGIONS.flatMap(r => r.cities.map(c => ({ ...c, region: r.name, tag: r.tag })));
+const ALL_CITIES = [];
+REGIONS.forEach(r => { r.cities.forEach(c => { c.region = r.name; c.tag = r.tag; ALL_CITIES.push(c); }); });
 
 let allListings = [];
 let dismissedIds = {};
@@ -764,7 +765,7 @@ async function doSearch() {
 
   allListings.sort((a, b) => b.date - a.date);
   btn.disabled = false;
-  btn.textContent = "Search boats";
+  btn.textContent = "Search";
   renderResults();
 }
 
