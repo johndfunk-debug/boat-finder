@@ -2,6 +2,7 @@ export default async (req) => {
   const url = new URL(req.url);
   const city = url.searchParams.get("city");
   const query = url.searchParams.get("query");
+  const cat = url.searchParams.get("cat") || "boo";
   const minPrice = url.searchParams.get("min_price") || "";
   const maxPrice = url.searchParams.get("max_price") || "";
   if (!city || !query) {
@@ -9,7 +10,7 @@ export default async (req) => {
       status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
     });
   }
-  let clUrl = `https://${encodeURIComponent(city)}.craigslist.org/search/boo?query=${encodeURIComponent(query)}`;
+  let clUrl = `https://${encodeURIComponent(city)}.craigslist.org/search/${encodeURIComponent(cat)}?query=${encodeURIComponent(query)}`;
   if (minPrice) clUrl += `&min_price=${encodeURIComponent(minPrice)}`;
   if (maxPrice) clUrl += `&max_price=${encodeURIComponent(maxPrice)}`;
   try {
@@ -42,7 +43,7 @@ export default async (req) => {
           const ad = (of2.availableAtOrFrom || {}).address || {};
           const imgs = it.image || [];
           // Build a search URL on that city's CL to find this exact listing
-          const searchUrl = `${base}/search/boo?query=${encodeURIComponent(it.name || "")}`;
+          const searchUrl = `${base}/search/${encodeURIComponent(cat)}?query=${encodeURIComponent(it.name || "")}`;
           return {
             title: it.name || "",
             url: it.url || searchUrl,

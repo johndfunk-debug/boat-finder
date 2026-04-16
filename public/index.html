@@ -379,8 +379,31 @@
 <body>
   <div class="container">
     <div class="header">
-      <h1>Boat <span>finder</span></h1>
-      <p>Aggregate Craigslist boat listings across dozens of cities. Find the rare stuff.</p>
+      <h1>Craigslist <span>finder</span></h1>
+      <p>Search Craigslist across dozens of cities. Find the rare stuff.</p>
+    </div>
+
+    <!-- Category -->
+    <div class="panel">
+      <div class="panel-label">Category</div>
+      <select id="categorySelect" style="width:100%; padding:10px 14px; font-size:15px; font-family:var(--font); border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--bg); color:var(--text); outline:none;">
+        <option value="boo">Boats</option>
+        <option value="bpa">Boat parts &amp; accessories</option>
+        <option value="tla">Tools</option>
+        <option value="sss">All for sale</option>
+        <option value="mca">Motorcycles</option>
+        <option value="cta">Cars &amp; trucks</option>
+        <option value="ata">Auto parts</option>
+        <option value="rva">Recreational vehicles</option>
+        <option value="msa">Materials</option>
+        <option value="hsa">Household</option>
+        <option value="gra">Garden</option>
+        <option value="ela">Electronics</option>
+        <option value="sga">Sporting goods</option>
+        <option value="fua">Furniture</option>
+        <option value="bia">Bikes</option>
+        <option value="foa">Free stuff</option>
+      </select>
     </div>
 
     <!-- Search terms -->
@@ -630,13 +653,12 @@ function toggleRegion(ri, on) {
 const IS_NETLIFY = !(location.hostname === "localhost" || location.hostname === "127.0.0.1" || location.protocol === "file:");
 
 // ── Fetch a single city/query from the serverless function ──
-async function fetchFeed(city, query, minPrice, maxPrice) {
+async function fetchFeed(city, query, minPrice, maxPrice, cat) {
   if (!IS_NETLIFY) {
-    // Can't run locally — serverless function only works on Netlify
     return [];
   }
 
-  let url = `/.netlify/functions/cl-feed?city=${encodeURIComponent(city)}&query=${encodeURIComponent(query)}`;
+  let url = `/.netlify/functions/cl-feed?city=${encodeURIComponent(city)}&query=${encodeURIComponent(query)}&cat=${encodeURIComponent(cat)}`;
   if (minPrice) url += `&min_price=${minPrice}`;
   if (maxPrice) url += `&max_price=${maxPrice}`;
 
@@ -673,6 +695,7 @@ async function doSearch() {
   const activeCities = ALL_CITIES.filter(c => c.on);
   const minPrice = document.getElementById("priceMin").value || "";
   const maxPrice = document.getElementById("priceMax").value || "";
+  const cat = document.getElementById("categorySelect").value;
 
   if (!terms.length) { area.innerHTML = '<div class="empty-state">Enter at least one search term.</div>'; return; }
   if (!activeCities.length) { area.innerHTML = '<div class="empty-state">Select at least one city.</div>'; return; }
@@ -715,7 +738,7 @@ async function doSearch() {
   for (let i = 0; i < jobs.length; i += BATCH) {
     const batch = jobs.slice(i, i + BATCH);
     const results = await Promise.allSettled(
-      batch.map(j => fetchFeed(j.city, j.term, minPrice, maxPrice))
+      batch.map(j => fetchFeed(j.city, j.term, minPrice, maxPrice, cat))
     );
     results.forEach(r => {
       if (r.status === "fulfilled" && r.value.length > 0) {
